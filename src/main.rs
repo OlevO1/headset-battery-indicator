@@ -16,15 +16,15 @@ fn main() {
 }
 
 pub fn init_file_logger() -> anyhow::Result<()> {
-    match std::env::current_dir() {
+    match std::env::current_exe() {
         Err(err) => {
             anyhow::bail!("Failed to get current directory: {err}");
         }
-        Ok(curr_dir) => {
+        Ok(current_exe) => {
             let log_file = File::options()
                 .append(true)
                 .create(true)
-                .open(curr_dir.join("headset-battery-indicator.log"))?;
+                .open(current_exe.parent().unwrap().join("headset-battery-indicator.log"))?;
 
             WriteLogger::init(
                 log::LevelFilter::Info,

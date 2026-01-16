@@ -131,7 +131,7 @@ impl ContextMenu {
                 }
             }
             id if id == self.menu_logs.id() => {
-                if let Ok(dir) = std::env::current_dir()
+                if let Ok(dir) = std::env::current_exe().map(|p| p.parent().unwrap().to_path_buf())
                     && let Err(e) = std::process::Command::new("explorer").arg(&dir).spawn()
                 {
                     error!("Failed to open path {dir:?}: {e:?}");
