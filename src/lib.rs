@@ -189,7 +189,6 @@ impl ApplicationHandler<()> for AppState {
                 self.update_receiver = None; // Stop checking
 
                 if has_update {
-                    info!("Update available");
                     if let Err(e) = self.context_menu.show_update_available() {
                         error!("Failed to show update menu item: {e:?}");
                     }

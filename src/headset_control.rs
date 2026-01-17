@@ -19,8 +19,9 @@ pub fn query_devices(vec: &mut Vec<Device>) -> anyhow::Result<()> {
         .map(|p| p.to_path_buf())
         .context("getting current executable directory")?;
 
-    let res = process::Command::new("./headsetcontrol.exe")
-        .current_dir(exe_dir)
+    let headsetcontrol_path = exe_dir.join("headsetcontrol.exe");
+
+    let res = process::Command::new(&headsetcontrol_path)
         .args(["--battery", "--output", "json"])
         .stdout(Stdio::piped())
         .creation_flags(DETACHED_PROCESS)

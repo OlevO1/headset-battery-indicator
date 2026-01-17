@@ -1,5 +1,8 @@
+use std::ffi::OsStr;
+use std::fmt::Debug;
+
 use anyhow::Context;
-use log::{debug, error};
+use log::error;
 use tray_icon::menu::MenuEvent;
 use tray_icon::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use winit::event_loop;
@@ -32,8 +35,12 @@ impl ContextMenu {
 
         let device_menu_items = Vec::new();
 
-        let menu_notifications =
-            CheckMenuItem::new(lang::t(show_notifications), true, notifications_enabled, None);
+        let menu_notifications = CheckMenuItem::new(
+            lang::t(show_notifications),
+            true,
+            notifications_enabled,
+            None,
+        );
 
         let menu_logs = MenuItem::new(lang::t(view_logs), true, None);
         let menu_close = MenuItem::new(lang::t(quit_program), true, None);
@@ -72,7 +79,7 @@ impl ContextMenu {
         // Insert at position 1 (after version item)
         self.menu.insert(&menu_item, 1)?;
         self.menu_update_available = Some(menu_item);
-        
+
         Ok(())
     }
 
@@ -137,18 +144,26 @@ impl ContextMenu {
         match event.id {
             id if id == self.menu_close.id() => event_loop.exit(),
 
-            id if self.menu_update_available.as_ref().is_some_and(|m| *m.id() == id) => {
+            id if self
+                .menu_update_available
+                .as_ref()
+                .is_some_and(|m| *m.id() == id) =>
+            {
                 let url = "https://github.com/aarol/headset-battery-indicator/releases";
-                if let Err(e) = std::process::Command::new("explorer").arg(url).spawn() {
-                    error!("Failed to open {url}: {e:?}");
+                {
+                    if let Err(err) = Self::spawn_command_no_window("explorer", &[&url]) {
+                        error!("Failed to open update URL {url}: {err:?}");
+                    }
                 }
             }
             id if id == self.menu_logs.id() => {
                 if let Ok(dir) = std::env::current_exe().map(|p| p.parent().unwrap().to_path_buf())
                 {
                     let path = dir.join("headset-battery-indicator.log");
-                    if let Err(e) = std::process::Command::new("explorer").arg(&path).spawn() {
-                        error!("Failed to open log file at {}: {e:?}", path.display());
+                    {
+                        if let Err(e) = Self::spawn_command_no_window("explorer", &[&path]) {
+                            error!("Failed to open log file at {}: {e:?}", path.display());
+                        }
                     }
                 }
             }
@@ -163,5 +178,22 @@ impl ContextMenu {
                 }
             }
         }
+    }
+
+    fn spawn_command_no_window<S>(cmd: &str, args: &[S]) -> anyhow::Result<()>
+    where
+        S: AsRef<OsStr> + Debug,
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let mut command = std::process::Command::new(cmd);
+        command.args(args).creation_flags(CREATE_NO_WINDOW);
+
+        command
+            .spawn()
+            .with_context(|| format!("Failed to spawn command: {} {:?}", cmd, args))?;
+
+        Ok(())
     }
 }
