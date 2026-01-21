@@ -10,7 +10,9 @@ Adds a small icon to the Windows task bar, displaying the battery level of most*
 * Built using Rust, with very low resource usage (<1MB RAM)
 * Supports most non-bluetooth headsets (SteelSeries, Logitech, Corsair, HyperX)
   * See all [supported headsets here](https://github.com/Sapd/HeadsetControl?tab=readme-ov-file#supported-headsets).
-    * Some headsets (notably Arctis Wireless 1) may not work even though they are listed as supported.
+  
+    > Since headset support is done by reverse-engineering the USB HID protocol, not every headset is supported yet, and some headsets (notably Arctis Wireless 1) may not work even though they are listed as supported. 
+ 
 * Shows a little green dot to indicate charging
 
   ![Charging icon](docs/icon-charging.png)
@@ -31,7 +33,7 @@ Headset Battery Indicator depends on [Sapd/HeadsetControl](https://github.com/Sa
 
 The code that is in this repository is the code that is in the executable. There is a [Github Action](https://github.com/aarol/headset-battery-indicator/actions) that builds the code from source and creates the release in the [releases page](https://github.com/aarol/headset-battery-indicator/releases).
 
-The GitHub release is marked as immutable, so once the executable is built by the Actions workflow, it cannot be modified by me or anyone else. This way you can be sure that the code you're running is the same code that is in this repository.
+The GitHub release is marked as immutable, so once the executable is built by the Actions workflow, it cannot be modified by me or anyone else. This way, it is guaranteed that the code you're running is the same code that is in this repository.
 
 ## Troubleshooting
 
@@ -78,9 +80,9 @@ Translations can be added to the [lang.rs](./src/lang.rs) file.
 
 Since version 3.0.0, the program gets the battery status by using [Sapd/HeadsetControl](https://github.com/Sapd/HeadsetControl). If the headset you're using isn't currently supported, you can either wait if someone else adds support for it, or try adding it yourself.
 
-I have a post on my website going a bit into reverse-engineering the headset APIs: <https://aarol.dev/posts/arctis-hid>
+Reading the [HeadsetControl wiki](https://github.com/Sapd/HeadsetControl/wiki/Development-1-%E2%80%90-Adding-a-device) is the best resource on this.
 
-Reading the [HeadsetControl wiki](https://github.com/Sapd/HeadsetControl/wiki/Development#problems) might be helpful for troubleshooting.
+I have a post on my website going a bit into reverse-engineering the headset APIs as well: <https://aarol.dev/posts/arctis-hid>
 
 ### License
 
