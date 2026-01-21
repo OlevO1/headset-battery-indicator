@@ -52,11 +52,28 @@ jobs:
         with:
           subject-path: "Output/HeadsetBatteryIndicatorSetup.exe"
 
+      - name: Read changelog
+        id: changelog
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $changelogPath = "changelog/$tag.md"
+          if (Test-Path $changelogPath) {
+            $content = Get-Content $changelogPath -Raw
+            # Escape for GitHub Actions output
+            $content = $content -replace '%', '%25'
+            $content = $content -replace '\n', '%0A'
+            $content = $content -replace '\r', '%0D'
+            "body=$content" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Error "Changelog file not found: $changelogPath"
+            exit 1
+          }
+
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             Output/HeadsetBatteryIndicatorSetup.exe
-
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.body }}
           draft: true
           name: Release ${{github.ref_name}}
