@@ -7,12 +7,12 @@ Adds a small icon to the Windows task bar, displaying the battery level of most*
 ## Features
 
 * Works on Windows 10+
-* Built using Rust, with very low resource usage (<1MB RAM)
+* Built using Rust, with low resource usage (~2MB RAM)
 * Supports most non-bluetooth headsets (SteelSeries, Logitech, Corsair, HyperX)
   * See all [supported headsets here](https://github.com/Sapd/HeadsetControl?tab=readme-ov-file#supported-headsets).
   
-    > Since headset support is done by reverse-engineering the USB HID protocol, not every headset is supported yet, and some headsets (notably Arctis Wireless 1) may not work even though they are listed as supported. 
- 
+    > Since headset support is done by reverse-engineering the USB HID protocol, not every headset is supported yet, and some headsets (notably Arctis Wireless 1) may not work even though they are listed as supported.
+
 * Shows a little green dot to indicate charging
 
   ![Charging icon](docs/icon-charging.png)
@@ -26,7 +26,7 @@ Headset Battery Indicator depends on [Sapd/HeadsetControl](https://github.com/Sa
 * Download the [latest release](https://github.com/aarol/headset-battery-indicator/releases/latest) and run the installer
 
 > Running the installer may result in a Windows defender SmartScreen warning. This happens to all executables that don't have a large enough install count. There's no way around it other than paying hundreds of dollars every year for a signed certificate from Microsoft :(
-> 
+>
 >Additionally, sometimes Windows Defender's ML-based antivirus falsely detects the program as a virus, most commonly `Wacatac.b!ml` (the "ml" at the end signifies machine learning).
 
 ## Security
@@ -49,11 +49,15 @@ Your headset might be unsupported due to being a new model. See [Adding a new he
 
 ## Development
 
-Rust and Cargo need to be installed.
+Rust and Cargo need to be installed. Additionally, this project builds HeadsetControl as a library (see [build.rs](./build.rs)). Visual Studio 2019 or later with "Desktop development with C++","Windows SDK" and "MSVC .. C++ x64/x86 build tools" workloads.
 
-First, download or compile the HeadsetControl executable [from here](https://github.com/sapd/HeadsetControl/).
+First, clone this repository:
 
-Then, clone this repository and copy the `headsetcontrol.exe` file into the project root folder (where `README.md` is).
+```sh
+git clone https://github.com/aarol/headset-battery-indicator --recursive
+```
+
+The `--recursive` flag is **important** since the project also contains hidapi and HeadsetControl as Git submodules in the [vendor](./vendor/) directory.
 
 Finally, from the `headset-battery-indicator` folder, you can:
 

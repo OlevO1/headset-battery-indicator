@@ -7,15 +7,11 @@ use tray_icon::menu::MenuEvent;
 use tray_icon::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use winit::event_loop;
 
-use crate::headset_control;
 use crate::lang;
 use crate::lang::Key::*;
 
 pub struct ContextMenu {
     pub menu: Menu,
-    device_menu_items: Vec<(headset_control::Device, CheckMenuItem)>,
-    pub selected_device_idx: usize,
-    separators: Option<(PredefinedMenuItem, PredefinedMenuItem)>, // (top, bottom)
     pub menu_notifications: CheckMenuItem,
     menu_logs: MenuItem,
     menu_close: MenuItem,
@@ -33,8 +29,6 @@ impl ContextMenu {
             None,
         ))?;
 
-        let device_menu_items = Vec::new();
-
         let menu_notifications = CheckMenuItem::new(
             lang::t(show_notifications),
             true,
@@ -44,7 +38,6 @@ impl ContextMenu {
 
         let menu_logs = MenuItem::new(lang::t(view_logs), true, None);
         let menu_close = MenuItem::new(lang::t(quit_program), true, None);
-        let separators = None;
         let menu_trigger_notification = MenuItem::new("Trigger Test Notification", true, None);
 
         #[cfg(debug_assertions)]
@@ -56,9 +49,6 @@ impl ContextMenu {
 
         Ok(Self {
             menu,
-            device_menu_items,
-            selected_device_idx: 0,
-            separators,
             menu_notifications,
             menu_logs,
             menu_close,
@@ -73,7 +63,7 @@ impl ContextMenu {
             return Ok(()); // Already showing
         }
 
-        let update_text = format!("🛎️ {}", lang::t(update_available));
+        let update_text = format!("❗ {}", lang::t(update_available));
         let menu_item = MenuItem::new(update_text, true, None);
 
         // Insert at position 1 (after version item)
@@ -81,63 +71,6 @@ impl ContextMenu {
         self.menu_update_available = Some(menu_item);
 
         Ok(())
-    }
-
-    pub fn update_device_menu(
-        &mut self,
-        devices: &[headset_control::Device],
-    ) -> anyhow::Result<()> {
-        // Remove separators
-        if let Some((top, bottom)) = &self.separators {
-            self.menu.remove(top).context("Removing top separator")?;
-            self.menu
-                .remove(bottom)
-                .context("Removing bottom separator")?;
-            self.separators = None;
-        }
-
-        // Remove old device menu items
-        for (_, item) in &self.device_menu_items {
-            self.menu.remove(item)?;
-        }
-        if devices.is_empty() {
-            self.selected_device_idx = 0;
-            return Ok(());
-        }
-
-        let (top_separator, bottom_separator) = (
-            PredefinedMenuItem::separator(),
-            PredefinedMenuItem::separator(),
-        );
-
-        self.device_menu_items.clear();
-        self.menu.insert(&top_separator, 1)?;
-
-        self.selected_device_idx = self.selected_device_idx.min(devices.len() - 1);
-
-        // Add new device menu items
-        for (i, device) in devices.iter().enumerate() {
-            let is_selected = i == self.selected_device_idx;
-            let menu_item = CheckMenuItem::new(device.product.clone(), true, is_selected, None);
-            self.menu.insert(&menu_item, 2 + i)?; // Insert after version item
-            self.device_menu_items.push((device.clone(), menu_item));
-        }
-
-        self.menu.insert(&bottom_separator, 2 + devices.len())?;
-        self.separators = Some((top_separator, bottom_separator));
-
-        Ok(())
-    }
-
-    fn set_selected(&mut self, idx: usize) {
-        if idx >= self.device_menu_items.len() {
-            return;
-        }
-
-        for (i, (_, item)) in self.device_menu_items.iter().enumerate() {
-            item.set_checked(i == idx);
-        }
-        self.selected_device_idx = idx;
     }
 
     pub fn handle_event(&mut self, event: MenuEvent, event_loop: &event_loop::ActiveEventLoop) {
@@ -167,16 +100,7 @@ impl ContextMenu {
                     }
                 }
             }
-            id => {
-                let idx = self
-                    .device_menu_items
-                    .iter()
-                    .enumerate()
-                    .find(|(_, (_, m))| m.id() == &id);
-                if let Some((i, _)) = idx {
-                    self.set_selected(i);
-                }
-            }
+            _ => {}
         }
     }
 

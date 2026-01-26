@@ -1,99 +1,89 @@
-use std::os::windows::process::CommandExt;
-use std::process;
-use std::process::Stdio;
-
-use anyhow::Context;
-use serde_derive::Deserialize;
-use serde_derive::Serialize;
-
 use crate::lang;
 use crate::lang::Key::*;
 
-// const CREATE_NO_WINDOW: u32 = 0x08000000;
-const DETACHED_PROCESS: u32 = 0x00000008;
+use libc::{c_char, c_int, c_void};
+use std::ffi::CStr;
 
-pub fn query_devices(vec: &mut Vec<Device>) -> anyhow::Result<()> {
-    let exe_dir = std::env::current_exe()
-        .context("getting current executable path")?
-        .parent()
-        .map(|p| p.to_path_buf())
-        .context("getting current executable directory")?;
+#[repr(C)]
+pub struct HscBattery {
+    pub level_percent: c_int,
+    pub status: BatteryStatus,
+    pub voltage_mv: c_int,
+    pub time_to_full_min: c_int,
+    pub time_to_empty_min: c_int,
+}
 
-    let headsetcontrol_path = exe_dir.join("headsetcontrol.exe");
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
+pub enum BatteryStatus {
+    #[default]
+    Unavailable,
+    Charging,
+    Available,
+    HidError,
+    Timeout,
+}
 
-    let res = process::Command::new(&headsetcontrol_path)
-        .args(["--battery", "--output", "json"])
-        .stdout(Stdio::piped())
-        .creation_flags(DETACHED_PROCESS)
-        .output()
-        .context("Failed to execute headsetcontrol.exe --battery --output json")?;
+const BATTERY_CAPABILITY: c_int = 1;
 
-    let response: Output = match serde_json::from_slice(&res.stdout) {
-        Ok(json) => json,
-        Err(e) => {
-            log::debug!(
-                "./headsetcontrol.exe --battery --output json:\n{}",
-                String::from_utf8_lossy(&res.stdout)
-            );
-            return Err(anyhow::anyhow!(
-                "Failed to parse JSON from headsetcontrol.exe: {}",
-                e
-            ));
-        }
-    };
+#[link(name = "headsetcontrol_static")]
+unsafe extern "C" {
+    unsafe fn hsc_discover(headsets: *mut *mut c_void) -> c_int;
+    unsafe fn hsc_free_headsets(headsets: *mut c_void, count: c_int);
+    unsafe fn hsc_get_name(headset: *mut c_void) -> *const c_char;
+    unsafe fn hsc_supports(headset: *mut c_void, cap: c_int) -> bool;
+    unsafe fn hsc_get_battery(headset: *mut c_void, battery: *mut HscBattery) -> c_int;
+}
 
-    vec.clear();
-    for device in response.devices {
-        if device.capabilities_str.iter().any(|cap| cap == "battery") {
-            vec.push(device);
+pub fn query_device() -> Option<Device> {
+    unsafe {
+        let mut headsets: *mut c_void = std::ptr::null_mut();
+        let count = hsc_discover(&mut headsets);
+
+        if count > 0 {
+            let headset_array =
+                std::slice::from_raw_parts(headsets as *const *mut c_void, count as usize);
+
+            let headset = headset_array[0]; // Just take the first headset found
+            if hsc_supports(headset, BATTERY_CAPABILITY) {
+                let mut battery = HscBattery {
+                    level_percent: 0,
+                    status: BatteryStatus::Unavailable,
+                    voltage_mv: -1,
+                    time_to_full_min: -1,
+                    time_to_empty_min: -1,
+                };
+                if hsc_get_battery(headset, &mut battery) == 0 {
+                    let product_name = CStr::from_ptr(hsc_get_name(headset))
+                        .to_str()
+                        .unwrap_or("Unknown")
+                        .to_string();
+
+                    hsc_free_headsets(headsets, count);
+                    return Some(Device {
+                        product_name,
+                        battery,
+                    });
+                }
+            }
         }
     }
 
-    Ok(())
+    None
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Output {
-    // pub name: String,
-    // pub version: String,
-    // #[serde(rename = "api_version")]
-    // pub api_version: String,
-    // #[serde(rename = "hidapi_version")]
-    // pub hidapi_version: String,
-    // pub device_count: i64,
-    pub devices: Vec<Device>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Device {
-    pub status: String,
-    // pub device: String,
-    // pub vendor: String,
-    pub product: String,
-    #[serde(rename = "id_vendor")]
-    pub id_vendor: String,
-    #[serde(rename = "id_product")]
-    pub id_product: String,
-    // pub capabilities: Vec<String>,
-    #[serde(rename = "capabilities_str")]
-    pub capabilities_str: Vec<String>,
-    pub battery: Battery,
-    // pub equalizer: Equalizer,
-    // #[serde(rename = "equalizer_presets_count")]
-    // pub equalizer_presets_count: i64,
-    // #[serde(rename = "equalizer_presets")]
-    // pub equalizer_presets: EqualizerPresets,
-    // pub chatmix: i64,
+    pub product_name: String,
+    pub battery: HscBattery,
 }
 
 impl Device {
     pub fn status_text(&self) -> Option<&'static str> {
         match self.battery.status {
-            BatteryState::BatteryCharging => Some(lang::t(device_charging)),
-            BatteryState::BatteryAvailable => None,
-            BatteryState::BatteryUnavailable => Some(lang::t(battery_unavailable)),
+            BatteryStatus::Charging => Some(lang::t(device_charging)),
+            BatteryStatus::Available => None,
+            BatteryStatus::Unavailable => Some(lang::t(battery_unavailable)),
             _ => Some(lang::t(device_disconnected)),
         }
     }
@@ -101,16 +91,16 @@ impl Device {
 
 impl std::fmt::Display for Device {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.battery.level > 0 {
+        if self.battery.level_percent > 0 {
             write!(
                 f,
                 "{name}: {battery}% {remaining}",
-                name = self.product,
-                battery = self.battery.level,
+                name = self.product_name,
+                battery = self.battery.level_percent,
                 remaining = lang::t(battery_remaining)
             )?;
         } else {
-            write!(f, "{}", self.product)?;
+            write!(f, "{}", self.product_name)?;
         }
 
         if let Some(status) = self.status_text() {
@@ -119,42 +109,4 @@ impl std::fmt::Display for Device {
 
         Ok(())
     }
-}
-
-#[derive(Default, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Battery {
-    pub status: BatteryState,
-    /// percentage in range 0-100
-    pub level: isize,
-}
-
-// #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub struct Equalizer {
-//     pub bands: i64,
-//     pub baseline: i64,
-//     pub step: f64,
-//     pub min: i64,
-//     pub max: i64,
-// }
-
-// #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub struct EqualizerPresets {
-//     pub flat: Vec<f64>,
-//     pub bass: Vec<f64>,
-//     pub focus: Vec<f64>,
-//     pub smiley: Vec<f64>,
-// }
-
-#[derive(Default, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum BatteryState {
-    #[default]
-    BatteryUnavailable,
-    BatteryCharging,
-    BatteryAvailable,
-    BatteryHiderror,
-    BatteryTimeout,
 }

@@ -20,12 +20,11 @@ use winit::{
     window::Theme,
 };
 
-use crate::{headset_control::BatteryState, notify::Notifier};
+use crate::{headset_control::BatteryStatus, notify::Notifier};
 use std::sync::mpsc;
 
 struct AppState {
     tray_icon: TrayIcon,
-    devices: Vec<headset_control::Device>,
     context_menu: menu::ContextMenu,
     settings: settings::Settings,
     notifier: Notifier,
@@ -57,7 +56,7 @@ impl AppState {
     pub fn init() -> anyhow::Result<Self> {
         let settings = settings::Settings::load().context("loading config from registry")?;
 
-        let icon = Self::load_icon(Theme::Dark, 0, BatteryState::BatteryUnavailable)
+        let icon = Self::load_icon(Theme::Dark, 0, BatteryStatus::Unavailable)
             .context("loading fallback disconnected icon")?;
 
         let context_menu = menu::ContextMenu::new(settings.notifications_enabled)
@@ -80,7 +79,6 @@ impl AppState {
             settings,
             notifier,
 
-            devices: vec![],
             last_update: Instant::now(),
             should_update_icon: true,
             update_receiver: Some(update_receiver),
@@ -88,73 +86,55 @@ impl AppState {
     }
 
     fn update(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<()> {
-        let old_device_count = self.devices.len();
-        headset_control::query_devices(&mut self.devices)?;
+        let result = headset_control::query_device();
 
-        if self.devices.len() != old_device_count {
-            self.context_menu
-                .update_device_menu(&self.devices)
-                .context("Updating context menu")?;
-        }
-
-        if self.devices.is_empty() {
-            self.tray_icon
-                .set_tooltip(Some(lang::t(no_adapter_found)))?;
-            return Ok(());
-        }
-
-        let device_idx = self
-            .context_menu
-            .selected_device_idx
-            .min(self.devices.len() - 1);
-
-        let battery_level;
-        let battery_status;
-        let product_name;
-        let tooltip_text;
-
-        {
-            let device = &self.devices[device_idx];
-            battery_level = device.battery.level;
-            battery_status = device.battery.status;
-            product_name = device.product.clone();
-
-            #[allow(unused_mut)]
-            let mut text = device.to_string();
-
-            #[cfg(debug_assertions)]
-            {
-                text += " (Debug)";
+        match result {
+            None => {
+                self.tray_icon
+                    .set_tooltip(Some(lang::t(no_adapter_found)))?;
+                return Ok(());
             }
+            Some(device) => {
+                let battery_level = device.battery.level_percent as isize;
+                let battery_status = device.battery.status;
+                let product_name = device.product_name.to_string();
+                let tooltip_text = format!(
+                    "{}{}",
+                    device.to_string(),
+                    if cfg!(debug_assertions) {
+                        " (Debug)"
+                    } else {
+                        ""
+                    }
+                );
 
-            tooltip_text = text;
+                self.notifier
+                    .update(battery_level, battery_status, &product_name);
+
+                self.tray_icon
+                    .set_tooltip(Some(&tooltip_text))
+                    .with_context(|| format!("setting tooltip text: {tooltip_text}"))?;
+
+                match Self::load_icon(
+                    event_loop.system_theme().unwrap_or(Theme::Dark),
+                    battery_level,
+                    battery_status,
+                ) {
+                    Ok(icon) => self.tray_icon.set_icon(Some(icon))?,
+                    Err(err) => error!("Failed to load icon: {err:?}"),
+                }
+
+                self.should_update_icon = false;
+
+                Ok(())
+            }
         }
-
-        self.notifier
-            .update(battery_level, battery_status, &product_name);
-
-        self.tray_icon
-            .set_tooltip(Some(&tooltip_text))
-            .with_context(|| format!("setting tooltip text: {tooltip_text}"))?;
-
-        match Self::load_icon(
-            event_loop.system_theme().unwrap_or(Theme::Dark),
-            battery_level,
-            battery_status,
-        ) {
-            Ok(icon) => self.tray_icon.set_icon(Some(icon))?,
-            Err(err) => error!("Failed to load icon: {err:?}"),
-        }
-
-        self.should_update_icon = false;
-
-        Ok(())
     }
 
     fn load_icon(
         theme: winit::window::Theme,
         battery_percent: isize,
-        state: BatteryState,
+        state: BatteryStatus,
     ) -> anyhow::Result<tray_icon::Icon> {
         let res_id = battery_res_id_for(theme, battery_percent, state);
 
@@ -294,7 +274,7 @@ fn enable_dark_mode_support() -> Result<()> {
     }
 }
 
-fn battery_res_id_for(theme: Theme, battery_percent: isize, state: BatteryState) -> u16 {
+fn battery_res_id_for(theme: Theme, battery_percent: isize, state: BatteryStatus) -> u16 {
     let level = match battery_percent {
         -1 => 1,
         0..=12 => 1,  // 0%
@@ -308,9 +288,9 @@ fn battery_res_id_for(theme: Theme, battery_percent: isize, state: BatteryState)
     // dark mode icons are (15,25,...,55)
     let theme_offset: u16 = if theme == Theme::Light { 5 } else { 0 };
     // Charging icons are at icon id + 1
-    let charging_offset = (state == BatteryState::BatteryCharging) as u16;
+    let charging_offset = (state == BatteryStatus::Charging) as u16;
 
-    if state == BatteryState::BatteryUnavailable {
+    if state == BatteryStatus::Unavailable {
         10 + theme_offset
     } else {
         level * 10 + theme_offset + charging_offset
@@ -320,9 +300,9 @@ fn battery_res_id_for(theme: Theme, battery_percent: isize, state: BatteryState)
 #[test]
 fn load_all_icons() {
     for i in 0..=100 {
-        let _ = AppState::load_icon(Theme::Dark, i, BatteryState::BatteryAvailable);
+        let _ = AppState::load_icon(Theme::Dark, i, BatteryStatus::Available);
     }
     for i in 0..=100 {
-        let _ = AppState::load_icon(Theme::Light, i, BatteryState::BatteryAvailable);
+        let _ = AppState::load_icon(Theme::Light, i, BatteryStatus::Available);
     }
 }

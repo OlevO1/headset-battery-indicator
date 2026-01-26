@@ -1,4 +1,4 @@
-use crate::headset_control::BatteryState;
+use crate::headset_control::BatteryStatus;
 
 use anyhow::{Context, Result};
 use win32_notif::{
@@ -10,7 +10,7 @@ use windows::{Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID, core::H
 
 pub struct Notifier {
     toast_notifier: ToastsNotifier,
-    last_notification_state: Option<(isize, BatteryState)>,
+    last_notification_state: Option<(isize, BatteryStatus)>,
 }
 
 impl Notifier {
@@ -26,14 +26,14 @@ impl Notifier {
     pub fn update(
         &mut self,
         current_level: isize,
-        current_status: BatteryState,
+        current_status: BatteryStatus,
         product_name: &str,
     ) {
         if let Some((last_level, last_status)) = self.last_notification_state {
             let mut msg = None;
 
-            let battery_discharging = current_status == BatteryState::BatteryAvailable;
-            let battery_charging = current_status == BatteryState::BatteryCharging;
+            let battery_discharging = current_status == BatteryStatus::Available;
+            let battery_charging = current_status == BatteryStatus::Charging;
 
             // Low battery (10%)
             if current_level <= 10 && last_level > 10 && battery_discharging {
@@ -44,7 +44,7 @@ impl Notifier {
                 msg = Some(format!("Battery critical ({}%)", current_level));
             }
             // Charging started
-            else if battery_charging && last_status != BatteryState::BatteryCharging {
+            else if battery_charging && last_status != BatteryStatus::Charging {
                 msg = Some(format!("Charging started ({}%)", current_level));
             }
             // Battery full (100%)

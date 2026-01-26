@@ -31,7 +31,6 @@ SetupMutex=Headset-Indicator-Mutex
 
 [Files]
 Source: "target/release/headset-battery-indicator.exe"; DestDir: "{app}"; Flags:
-Source: "headsetcontrol.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "target/release/headset-battery-indicator-debug.exe"; DestDir: "{app}"; Flags:
 Source: "licenses/HeadsetControl.txt"; DestDir: "{app}/licenses"; Flags: ignoreversion
 
