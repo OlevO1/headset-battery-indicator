@@ -9,10 +9,12 @@ use winit::event_loop;
 
 use crate::lang;
 use crate::lang::Key::*;
+use crate::settings::Settings;
 
 pub struct ContextMenu {
     pub menu: Menu,
-    pub menu_notifications: CheckMenuItem,
+    pub menu_enable_notifications: CheckMenuItem,
+    pub menu_show_text_icon: CheckMenuItem,
     menu_logs: MenuItem,
     menu_close: MenuItem,
     pub menu_trigger_notification: MenuItem,
@@ -20,7 +22,7 @@ pub struct ContextMenu {
 }
 
 impl ContextMenu {
-    pub fn new(notifications_enabled: bool) -> anyhow::Result<Self> {
+    pub fn new(settings: Settings) -> anyhow::Result<Self> {
         let menu = Menu::new();
 
         menu.append(&MenuItem::new(
@@ -32,7 +34,14 @@ impl ContextMenu {
         let menu_notifications = CheckMenuItem::new(
             lang::t(show_notifications),
             true,
-            notifications_enabled,
+            settings.notifications_enabled,
+            None,
+        );
+
+        let menu_show_text_icon = CheckMenuItem::new(
+            lang::t(show_text_icon),
+            true,
+            settings.use_number_icon,
             None,
         );
 
@@ -43,13 +52,14 @@ impl ContextMenu {
         #[cfg(debug_assertions)]
         menu.append(&menu_trigger_notification)?;
 
-        menu.append_items(&[&menu_notifications, &menu_logs])?;
+        menu.append_items(&[&menu_notifications, &menu_show_text_icon, &menu_logs])?;
         menu.append(&PredefinedMenuItem::separator())?;
         menu.append(&menu_close)?;
 
         Ok(Self {
             menu,
-            menu_notifications,
+            menu_enable_notifications: menu_notifications,
+            menu_show_text_icon,
             menu_logs,
             menu_close,
             menu_trigger_notification,

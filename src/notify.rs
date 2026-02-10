@@ -65,7 +65,7 @@ impl Notifier {
     pub fn show_notification(&mut self, product_name: &str, body: &str) -> Result<()> {
         let builder = NotificationBuilder::new()
             .visual(Text::create(0, product_name).with_style(HintStyle::Title))
-            .visual(Text::create(1, &body).with_style(HintStyle::Body));
+            .visual(Text::create(1, body).with_style(HintStyle::Body));
 
         builder
             .build(0, &self.toast_notifier, product_name, "battery")

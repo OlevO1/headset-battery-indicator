@@ -1,4 +1,5 @@
 mod headset_control;
+mod icon;
 mod lang;
 mod menu;
 mod notify;
@@ -20,7 +21,7 @@ use winit::{
     window::Theme,
 };
 
-use crate::{headset_control::BatteryStatus, notify::Notifier};
+use crate::{headset_control::BatteryStatus, notify::Notifier, settings::Settings};
 use std::sync::mpsc;
 
 struct AppState {
@@ -56,11 +57,14 @@ impl AppState {
     pub fn init() -> anyhow::Result<Self> {
         let settings = settings::Settings::load().context("loading config from registry")?;
 
-        let icon = Self::load_icon(Theme::Dark, 0, BatteryStatus::Unavailable)
-            .context("loading fallback disconnected icon")?;
+        let icon = Self::load_icon(
+            settings,
+            Theme::Dark,
+            0,
+            BatteryStatus::Unavailable,
+        ).context("loading fallback icon")?;
 
-        let context_menu = menu::ContextMenu::new(settings.notifications_enabled)
-            .context("creating context menu")?;
+        let context_menu = menu::ContextMenu::new(settings).context("creating context menu")?;
 
         let tray_icon = TrayIconBuilder::new()
             .with_icon(icon)
@@ -90,9 +94,20 @@ impl AppState {
 
         match result {
             None => {
+                self.notifier.update(0, BatteryStatus::Unavailable, "");
+
                 self.tray_icon
                     .set_tooltip(Some(lang::t(no_adapter_found)))?;
-                return Ok(());
+                match Self::load_icon(
+                    self.settings,
+                    event_loop.system_theme().unwrap_or(Theme::Dark),
+                    0,
+                    BatteryStatus::Unavailable,
+                ) {
+                    Ok(icon) => self.tray_icon.set_icon(Some(icon))?,
+                    Err(err) => error!("Failed to load icon: {err:?}"),
+                }
+                Ok(())
             }
             Some(device) => {
                 let battery_level = device.battery.level_percent as isize;
@@ -100,7 +115,7 @@ impl AppState {
                 let product_name = device.product_name.to_string();
                 let tooltip_text = format!(
                     "{}{}",
-                    device.to_string(),
+                    device,
                     if cfg!(debug_assertions) {
                         " (Debug)"
                     } else {
@@ -116,6 +131,7 @@ impl AppState {
                     .with_context(|| format!("setting tooltip text: {tooltip_text}"))?;
 
                 match Self::load_icon(
+                    self.settings,
                     event_loop.system_theme().unwrap_or(Theme::Dark),
                     battery_level,
                     battery_status,
@@ -132,14 +148,16 @@ impl AppState {
     }
 
     fn load_icon(
-        theme: winit::window::Theme,
+        settings: Settings,
+        theme: Theme,
         battery_percent: isize,
         state: BatteryStatus,
     ) -> anyhow::Result<tray_icon::Icon> {
-        let res_id = battery_res_id_for(theme, battery_percent, state);
-
-        tray_icon::Icon::from_resource(res_id, None)
-            .with_context(|| format!("loading icon from resource {res_id}"))
+        if settings.use_number_icon {
+            icon::generate_number_icon(theme, battery_percent, state).context("generating number icon")
+        } else {
+            icon::load_from_resource(theme, battery_percent, state).context("loading icon from resource")
+        }
     }
 }
 
@@ -164,15 +182,13 @@ impl ApplicationHandler<()> for AppState {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         // Check if update check has completed (non-blocking)
-        if let Some(receiver) = &self.update_receiver {
-            if let Ok(has_update) = receiver.try_recv() {
-                self.update_receiver = None; // Stop checking
+        if let Some(receiver) = &self.update_receiver
+            && let Ok(has_update) = receiver.try_recv()
+        {
+            self.update_receiver = None; // Stop checking
 
-                if has_update {
-                    if let Err(e) = self.context_menu.show_update_available() {
-                        error!("Failed to show update menu item: {e:?}");
-                    }
-                }
+            if has_update && let Err(e) = self.context_menu.show_update_available() {
+                error!("Failed to show update menu item: {e:?}");
             }
         }
 
@@ -185,10 +201,10 @@ impl ApplicationHandler<()> for AppState {
         }
         if let Ok(event) = MenuEvent::receiver().try_recv() {
             match event.id {
-                id if id == self.context_menu.menu_notifications.id() => {
+                id if id == self.context_menu.menu_enable_notifications.id() => {
                     self.settings.notifications_enabled = !self.settings.notifications_enabled;
                     self.context_menu
-                        .menu_notifications
+                        .menu_enable_notifications
                         .set_checked(self.settings.notifications_enabled);
                     if let Err(e) = self.settings.save() {
                         error!("Failed to save settings: {e:?}");
@@ -202,6 +218,19 @@ impl ApplicationHandler<()> for AppState {
                         {
                             error!("Failed to show notification: {:?}", err);
                         }
+                    }
+                }
+
+                id if id == self.context_menu.menu_show_text_icon.id() => {
+                    self.settings.use_number_icon = !self.settings.use_number_icon;
+                    self.context_menu
+                        .menu_show_text_icon
+                        .set_checked(self.settings.use_number_icon);
+
+                    _ = self.update(event_loop);
+
+                    if let Err(e) = self.settings.save() {
+                        error!("Failed to save settings: {e:?}");
                     }
                 }
 
@@ -271,38 +300,5 @@ fn enable_dark_mode_support() -> Result<()> {
         set_preferred_app_mode(PreferredAppMode::AllowDark);
 
         Ok(())
-    }
-}
-
-fn battery_res_id_for(theme: Theme, battery_percent: isize, state: BatteryStatus) -> u16 {
-    let level = match battery_percent {
-        -1 => 1,
-        0..=12 => 1,  // 0%
-        13..=37 => 2, // 25%
-        38..=62 => 3, // 50%
-        63..=87 => 4, // 75%
-        _ => 5,       // 100%
-    };
-
-    // light mode icons are (10,20,...,50)
-    // dark mode icons are (15,25,...,55)
-    let theme_offset: u16 = if theme == Theme::Light { 5 } else { 0 };
-    // Charging icons are at icon id + 1
-    let charging_offset = (state == BatteryStatus::Charging) as u16;
-
-    if state == BatteryStatus::Unavailable {
-        10 + theme_offset
-    } else {
-        level * 10 + theme_offset + charging_offset
-    }
-}
-
-#[test]
-fn load_all_icons() {
-    for i in 0..=100 {
-        let _ = AppState::load_icon(Theme::Dark, i, BatteryStatus::Available);
-    }
-    for i in 0..=100 {
-        let _ = AppState::load_icon(Theme::Light, i, BatteryStatus::Available);
     }
 }
