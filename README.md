@@ -49,10 +49,13 @@ Your headset might be unsupported due to being a new model. See [Adding a new he
 
 ## Development
 
-This project depends on a number of Rust crates, and additionally [hidapi](https://github.com/libusb/hidapi) and [HeadsetControl](https://github.com/Sapd/HeadsetControl) which are stored as submodules in the [vendor](./vendor/) directory. Those C/C++ projects are built in [build.rs](./build.rs) using the `cc` crate.
-Rust and Cargo need to be installed. Additionally, this project builds HeadsetControl as a library (see [build.rs](./build.rs)). Visual Studio 2019 or later with "Desktop development with C++","Windows SDK" and "MSVC .. C++ x64/x86 build tools" workloads.
+Git, Rust and Cargo need to be installed.
 
-To develop this project, first clone this repository:
+Additionally, this project depends on [hidapi](https://github.com/libusb/hidapi) and [HeadsetControl](https://github.com/Sapd/HeadsetControl) which are stored as Git submodules in the [vendor](./vendor/) directory. Those C/C++ projects are built in [build.rs](./build.rs) using the `cc` crate.
+ 
+The MSVC compiler is also required. Install Visual Studio 2019 or later with "Desktop development with C++","Windows SDK" and "MSVC .. C++ x64/x86 build tools" workloads.
+
+To get started with developing the project, first clone this repository:
 
 ```sh
 git clone https://github.com/aarol/headset-battery-indicator --recursive
@@ -70,7 +73,7 @@ Then, from the `headset-battery-indicator` folder, you can:
 
 * Build the installer: install [Inno Setup Compiler](https://jrsoftware.org/isinfo.php), open [installer.iss](installer.iss) and click "Compile".
 
-### Translations
+## Translations
 
 There are translations for the following languages:
 
@@ -84,11 +87,29 @@ Translations can be added to the [lang.rs](./src/lang.rs) file.
 
 ## Adding a new headset
 
-Headset Battery Indicator depends on [Sapd/HeadsetControl](https://github.com/Sapd/HeadsetControl) for supporting many kinds of headset models. If the headset you're using isn't currently supported, you can either wait until someone else adds support for it, or try adding it yourself.
+Headset Battery Indicator depends on [HeadsetControl](https://github.com/Sapd/HeadsetControl) for supporting many kinds of headset models. If the headset you're using isn't currently supported, you can either wait until someone else adds support for it, or try adding it yourself.
 
 Reading the [HeadsetControl wiki](https://github.com/Sapd/HeadsetControl/wiki/Development-1-%E2%80%90-Adding-a-device) is the best resource on this.
 
 I have a post on my website going a bit into reverse-engineering the headset APIs as well: <https://aarol.dev/posts/arctis-hid>
+
+### Arctis headphone firmware update
+
+In early 2026, many SteelSeries Arctis headphones received a new firmware update, adding more accurate battery level reporting, but also changing the HID product ID, leading to HeadsetControl (and thus this program) not recognizing the headset.
+
+Luckily, the fix is quite simple. The new product ID simply needs to be reported to the maintainers.
+
+Here's how you can find the product ID:
+
+1. Open "Device Manager" on Windows
+2. Find your headset in the list and open "**properties**"
+3. In the Details tab, select the "device instance path" property. It will contain the vendor ID (VID) and product ID (PID).
+
+<details><summary>Reference screenshot</summary>
+ <img width="400" height="455" alt="image" src="https://github.com/user-attachments/assets/47a21657-cc0f-4ed1-bc8c-7d8e8ece8827" />
+</details>
+
+Once you have the vID and pID, you can file an issue in the repository or in [HeadsetControl](https://github.com/Sapd/HeadsetControl), or file a [pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) if you're more technically savvy!
 
 ### License
 
