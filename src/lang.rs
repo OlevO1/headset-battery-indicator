@@ -2,7 +2,7 @@ pub fn t(key: Key) -> &'static str {
     use Key::*;
     match *LANG {
         Lang::En => match key {
-            no_adapter_found => "No headphone adapter found",
+            no_headset_found => "No headset found",
             view_logs => "View logs",
             quit_program => "Close",
             device_charging => "(Charging)",
@@ -15,7 +15,7 @@ pub fn t(key: Key) -> &'static str {
             update_available => "Update available",
         },
         Lang::Fi => match key {
-            no_adapter_found => "Kuulokeadapteria ei löytynyt",
+            no_headset_found => "Kuulokkeita ei löytynyt",
             view_logs => "Näytä lokitiedostot",
             quit_program => "Sulje",
             device_charging => "(Latautuu)",
@@ -28,7 +28,7 @@ pub fn t(key: Key) -> &'static str {
             update_available => "Päivitys saatavilla",
         },
         Lang::De => match key {
-            no_adapter_found => "Kein Kopfhöreradapter gefunden",
+            no_headset_found => "Kein Headset gefunden",
             view_logs => "Protokolle anzeigen",
             quit_program => "Beenden",
             device_charging => "(Wird geladen)",
@@ -41,7 +41,7 @@ pub fn t(key: Key) -> &'static str {
             update_available => "Update verfügbar",
         },
         Lang::It => match key {
-            no_adapter_found => "Nessun adattatore per cuffie trovato",
+            no_headset_found => "Nessuna cuffia trovata",
             view_logs => "Visualizza file di log",
             quit_program => "Chiudi",
             device_charging => "(In carica)",
@@ -54,7 +54,7 @@ pub fn t(key: Key) -> &'static str {
             update_available => "Aggiornamento disponibile",
         },
         Lang::Pt => match key {
-            no_adapter_found => "Não foi encontrado adaptador de auscultadores",
+            no_headset_found => "Nenhum headset encontrado",
             view_logs => "Ver registos",
             quit_program => "Fechar",
             device_charging => "(A carregar)",
@@ -80,7 +80,7 @@ pub enum Lang {
 
 #[allow(non_camel_case_types)]
 pub enum Key {
-    no_adapter_found,
+    no_headset_found,
     view_logs,
     quit_program,
     device_charging,

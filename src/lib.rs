@@ -97,7 +97,7 @@ impl AppState {
                 self.notifier.update(0, BatteryStatus::Unavailable, "");
 
                 self.tray_icon
-                    .set_tooltip(Some(lang::t(no_adapter_found)))?;
+                    .set_tooltip(Some(lang::t(no_headset_found)))?;
                 match Self::load_icon(
                     self.settings,
                     event_loop.system_theme().unwrap_or(Theme::Dark),
