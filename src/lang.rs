@@ -66,6 +66,19 @@ pub fn t(key: Key) -> &'static str {
             version => "Versão",
             update_available => "Atualização disponível",
         },
+        Lang::Zh => match key {
+            no_headset_found => "未找到耳机",
+            view_logs => "查看日志",
+            quit_program => "关闭",
+            device_charging => "(充电中)",
+            device_disconnected => "(未连接)",
+            battery_unavailable => "(电池不可用)",
+            show_notifications => "显示通知",
+            show_text_icon => "以数字百分比显示电池图标",
+            notifications_enabled_message => "通知已启用",
+            version => "版本",
+            update_available => "有更新可用",
+        },
     }
 }
 
@@ -76,6 +89,7 @@ pub enum Lang {
     De,
     It,
     Pt,
+    Zh,
 }
 
 #[allow(non_camel_case_types)]
@@ -105,6 +119,7 @@ pub static LANG: LazyLock<Lang> = LazyLock::new(|| {
         "de" | "de-DE" | "de-AT" | "de-CH" => Lang::De,
         "it" | "it-IT" | "it-CH" => Lang::It,
         "pt" | "pt-PT" | "pt-BR" => Lang::Pt,
+        "zh" | "zh-CN" => Lang::Zh,
         _ => Lang::En,
     }
 });
