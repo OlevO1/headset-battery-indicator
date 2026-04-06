@@ -9,7 +9,13 @@ mod version_check;
 #[cfg(windows)]
 use anyhow::Result;
 use lang::Key::*;
-use std::time::{Duration, Instant};
+use std::{
+    sync::LazyLock, time::{Duration, Instant}
+};
+use windows::{
+    Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA},
+    core::PCSTR,
+};
 
 use anyhow::Context;
 use log::{debug, error, info, warn};
@@ -42,7 +48,7 @@ pub fn run() -> anyhow::Result<()> {
     info!("Version {VERSION}");
     debug!("Using locale {:?}", *lang::LANG);
 
-    if let Err(err) = enable_dark_mode_support() {
+    if let Err(err) = enable_menu_dark_mode_support() {
         warn!("Failed to enable dark mode support: {:?}", err);
     }
 
@@ -57,12 +63,8 @@ impl AppState {
     pub fn init() -> anyhow::Result<Self> {
         let settings = settings::Settings::load().context("loading config from registry")?;
 
-        let icon = Self::load_icon(
-            settings,
-            Theme::Dark,
-            0,
-            BatteryStatus::Unavailable,
-        ).context("loading fallback icon")?;
+        let icon = Self::load_icon(settings, Theme::Dark, 0, BatteryStatus::Unavailable)
+            .context("loading fallback icon")?;
 
         let context_menu = menu::ContextMenu::new(settings).context("creating context menu")?;
 
@@ -106,12 +108,8 @@ impl AppState {
 
                 self.tray_icon
                     .set_tooltip(Some(lang::t(no_headset_found)))?;
-                match Self::load_icon(
-                    self.settings,
-                    event_loop.system_theme().unwrap_or(Theme::Dark),
-                    0,
-                    BatteryStatus::Unavailable,
-                ) {
+                match Self::load_icon(self.settings, system_theme(), 0, BatteryStatus::Unavailable)
+                {
                     Ok(icon) => self.tray_icon.set_icon(Some(icon))?,
                     Err(err) => error!("Failed to load icon: {err:?}"),
                 }
@@ -139,12 +137,8 @@ impl AppState {
                     .set_tooltip(Some(&tooltip_text))
                     .with_context(|| format!("setting tooltip text: {tooltip_text}"))?;
 
-                match Self::load_icon(
-                    self.settings,
-                    event_loop.system_theme().unwrap_or(Theme::Dark),
-                    battery_level,
-                    battery_status,
-                ) {
+                match Self::load_icon(self.settings, system_theme(), battery_level, battery_status)
+                {
                     Ok(icon) => self.tray_icon.set_icon(Some(icon))?,
                     Err(err) => error!("Failed to load icon: {err:?}"),
                 }
@@ -163,9 +157,11 @@ impl AppState {
         state: BatteryStatus,
     ) -> anyhow::Result<tray_icon::Icon> {
         if settings.use_number_icon {
-            icon::generate_number_icon(theme, battery_percent, state).context("generating number icon")
+            icon::generate_number_icon(theme, battery_percent, state)
+                .context("generating number icon")
         } else {
-            icon::load_from_resource(theme, battery_percent, state).context("loading icon from resource")
+            icon::load_from_resource(theme, battery_percent, state)
+                .context("loading icon from resource")
         }
     }
 }
@@ -290,7 +286,7 @@ enum PreferredAppMode {
 type SetPreferredAppModeFn = unsafe extern "system" fn(PreferredAppMode) -> i32;
 
 #[cfg(windows)]
-fn enable_dark_mode_support() -> Result<()> {
+fn enable_menu_dark_mode_support() -> Result<()> {
     unsafe {
         // Load uxtheme.dll
 
@@ -314,4 +310,40 @@ fn enable_dark_mode_support() -> Result<()> {
 
         Ok(())
     }
+}
+
+fn system_theme() -> Theme {
+    if should_system_use_dark_mode() {
+        Theme::Dark
+    } else {
+        Theme::Light
+    }
+}
+
+// Since the tray icon is on the task bar, it should follow
+// the *system* level dark mode setting, not the application level setting.
+fn should_system_use_dark_mode() -> bool {
+    type ShouldSystemUseDarkMode = unsafe extern "system" fn() -> bool;
+
+    static SHOULD_SYSTEM_USE_DARK_MODE: LazyLock<Option<ShouldSystemUseDarkMode>> =
+        LazyLock::new(|| unsafe {
+            const UXTHEME_SHOULDSYSTEMUSEDARKMODE_ORDINAL: PCSTR =
+                PCSTR::from_raw(138 as *const u8);
+
+            match LoadLibraryA(windows::core::s!("uxtheme.dll")) {
+                Ok(module) => {
+                    let handle = GetProcAddress(module, UXTHEME_SHOULDSYSTEMUSEDARKMODE_ORDINAL);
+                    if let Some(handle) = handle {
+                        Some(std::mem::transmute(handle))
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => return None,
+            }
+        });
+
+    SHOULD_SYSTEM_USE_DARK_MODE
+        .map(|shoud_system_use_dark_mode| unsafe { (shoud_system_use_dark_mode)() })
+        .unwrap_or(true)
 }
