@@ -28,7 +28,7 @@ struct AppState {
     tray_icon: TrayIcon,
     context_menu: menu::ContextMenu,
     settings: settings::Settings,
-    notifier: Notifier,
+    notifier: Option<Notifier>,
 
     last_update: Instant,
     should_update_icon: bool,
@@ -72,7 +72,13 @@ impl AppState {
             .build()
             .context("Failed to create tray icon")?;
 
-        let notifier = Notifier::new().context("initializing notifier")?;
+        let notifier = match Notifier::new() {
+            Ok(notifier) => Some(notifier),
+            Err(err) => {
+                error!("Failed to initialize notification system: {err:?}");
+                None
+            }
+        };
 
         // Check for updates in the background (non-blocking)
         let update_receiver = version_check::check_for_updates_async(VERSION);
@@ -89,12 +95,14 @@ impl AppState {
         })
     }
 
-    fn update(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<()> {
+    fn update(&mut self, _event_loop: &ActiveEventLoop) -> anyhow::Result<()> {
         let result = headset_control::query_device();
 
         match result {
             None => {
-                self.notifier.update(0, BatteryStatus::Unavailable, "");
+                if let Some(notifier) = &mut self.notifier {
+                    notifier.update(0, BatteryStatus::Unavailable, "");
+                }
 
                 self.tray_icon
                     .set_tooltip(Some(lang::t(no_headset_found)))?;
@@ -123,8 +131,9 @@ impl AppState {
                     }
                 );
 
-                self.notifier
-                    .update(battery_level, battery_status, &product_name);
+                if let Some(notifier) = &mut self.notifier {
+                    notifier.update(battery_level, battery_status, &product_name);
+                }
 
                 self.tray_icon
                     .set_tooltip(Some(&tooltip_text))
@@ -212,11 +221,13 @@ impl ApplicationHandler<()> for AppState {
 
                     if self.settings.notifications_enabled {
                         let msg = lang::t(notifications_enabled_message);
-                        if let Err(err) = self
-                            .notifier
-                            .show_notification("Headset Battery Indicator", msg)
-                        {
-                            error!("Failed to show notification: {:?}", err);
+
+                        if let Some(notifier) = &mut self.notifier {
+                            if let Err(err) =
+                                notifier.show_notification("Headset Battery Indicator", msg)
+                            {
+                                error!("Failed to show notification: {:?}", err);
+                            }
                         }
                     }
                 }
@@ -237,9 +248,11 @@ impl ApplicationHandler<()> for AppState {
                 id if id == self.context_menu.menu_trigger_notification.id() => {
                     #[cfg(debug_assertions)]
                     {
-                        self.notifier
-                            .show_notification("Test Device", "Battery critical (50%)")
-                            .expect("Sending test notification");
+                        if let Some(notifier) = &mut self.notifier {
+                            notifier
+                                .show_notification("Test Device", "Battery low (50%)")
+                                .expect("Sending test notification");
+                        }
                     }
                 }
 
