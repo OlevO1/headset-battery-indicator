@@ -14,6 +14,19 @@ default-run = "headset-battery-indicator-debug"
 name = "headset-battery-indicator-debug"
 path = "src/bin/debug.rs"
 
+[[bin]]
+name = "headset-battery-indicator"
+path = "src/main.rs"
+
+[[bin]]
+name = "headset-battery-indicator-portable"
+path = "src/main.rs"
+required-features = ["portable"]
+
+[features]
+default = []
+portable = []
+
 [dependencies]
 anyhow = "1.0.99"
 dirs = "6.0.0"

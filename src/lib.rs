@@ -61,7 +61,11 @@ pub fn run() -> anyhow::Result<()> {
 
 impl AppState {
     pub fn init() -> anyhow::Result<Self> {
+        #[cfg(not(feature = "portable"))]
         let settings = settings::Settings::load().context("loading config from registry")?;
+        
+        #[cfg(feature = "portable")]
+        let settings = settings::Settings::load().context("loading config from ini")?;
 
         let icon = Self::load_icon(settings, Theme::Dark, 0, BatteryStatus::Unavailable)
             .context("loading fallback icon")?;
