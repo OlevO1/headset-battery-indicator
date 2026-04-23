@@ -79,6 +79,19 @@ pub fn t(key: Key) -> &'static str {
             version => "版本",
             update_available => "有更新可用",
         },
+        Lang::Hu => match key {
+            no_headset_found => "Nem található fejhallgató vagy adapter",
+            view_logs => "Logok megtekintése",
+            quit_program => "Bezárás",
+            device_charging => "(Töltés alatt)",
+            device_disconnected => "(Lecsatlakoztatva)",
+            battery_unavailable => "(Akkumulátor információ nem elérhető)",
+            show_notifications => "Értesítések megjelenítése",
+            show_text_icon => "Akkumulátor százalékos megjelenitése iconban",
+            notifications_enabled_message => "Értesítések engedélyezve",
+            version => "Verzió",
+            update_available => "Frissítés elérhető",
+        },
     }
 }
 
@@ -90,6 +103,7 @@ pub enum Lang {
     It,
     Pt,
     Zh,
+    Hu,
 }
 
 #[allow(non_camel_case_types)]
@@ -120,6 +134,7 @@ pub static LANG: LazyLock<Lang> = LazyLock::new(|| {
         "it" | "it-IT" | "it-CH" => Lang::It,
         "pt" | "pt-PT" | "pt-BR" => Lang::Pt,
         "zh" | "zh-CN" => Lang::Zh,
+        "hu" | "hu-HU" => Lang::Hu,
         _ => Lang::En,
     }
 });
