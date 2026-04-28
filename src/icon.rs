@@ -48,8 +48,7 @@ pub fn generate_number_icon(
         }
     }
 
-    tray_icon::Icon::from_rgba(img, size, size)
-        .context("creating icon from generated image buffer")
+    tray_icon::Icon::from_rgba(img, size, size).context("creating icon from generated image buffer")
 }
 
 pub fn load_from_resource(

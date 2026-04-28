@@ -43,7 +43,7 @@ fn check_for_updates(current_version: &str) -> Result<bool, Box<dyn std::error::
         .read_json()?;
 
     let latest_version = response.tag_name.trim_start_matches('v');
-    
+
     if is_newer_version(latest_version, current_version) {
         info!("New version available: {latest_version} (current: {current_version})");
         Ok(true)
@@ -55,11 +55,8 @@ fn check_for_updates(current_version: &str) -> Result<bool, Box<dyn std::error::
 /// Compares two semver-like version strings (e.g., "3.3.0" vs "3.2.1").
 /// Returns true if `latest` is newer than `current`.
 fn is_newer_version(latest: &str, current: &str) -> bool {
-    let parse_version = |v: &str| -> Vec<u32> {
-        v.split('.')
-            .filter_map(|s| s.parse::<u32>().ok())
-            .collect()
-    };
+    let parse_version =
+        |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse::<u32>().ok()).collect() };
 
     let latest_parts = parse_version(latest);
     let current_parts = parse_version(current);

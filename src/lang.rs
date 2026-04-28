@@ -13,6 +13,10 @@ pub fn t(key: Key) -> &'static str {
             notifications_enabled_message => "Notifications enabled",
             version => "Version",
             update_available => "Update available",
+            control_headset => "Control headset",
+            sidetone => "Sidetone",
+            microphone_light => "Microphone LED when muted",
+            inactive_time => "Inactive time",
         },
         Lang::Fi => match key {
             no_headset_found => "Kuulokkeita ei löytynyt",
@@ -26,6 +30,7 @@ pub fn t(key: Key) -> &'static str {
             show_text_icon => "Näytä akun tila numerona",
             version => "Versio",
             update_available => "Päivitys saatavilla",
+            _ => english(key),
         },
         Lang::De => match key {
             no_headset_found => "Kein Headset gefunden",
@@ -39,6 +44,7 @@ pub fn t(key: Key) -> &'static str {
             show_text_icon => "Batteriestatus als Zahlensymbol anzeigen",
             version => "Version",
             update_available => "Update verfügbar",
+            _ => english(key),
         },
         Lang::It => match key {
             no_headset_found => "Nessuna cuffia trovata",
@@ -52,6 +58,7 @@ pub fn t(key: Key) -> &'static str {
             show_text_icon => "Mostra stato batteria come icona numerica",
             version => "Versione",
             update_available => "Aggiornamento disponibile",
+            _ => english(key),
         },
         Lang::Pt => match key {
             no_headset_found => "Nenhum headset encontrado",
@@ -65,6 +72,7 @@ pub fn t(key: Key) -> &'static str {
             show_text_icon => "Mostrar estado da bateria como ícone numérico",
             version => "Versão",
             update_available => "Atualização disponível",
+            _ => english(key),
         },
         Lang::Zh => match key {
             no_headset_found => "未找到耳机",
@@ -78,6 +86,7 @@ pub fn t(key: Key) -> &'static str {
             notifications_enabled_message => "通知已启用",
             version => "版本",
             update_available => "有更新可用",
+            _ => english(key),
         },
         Lang::Hu => match key {
             no_headset_found => "Nem található fejhallgató vagy adapter",
@@ -87,11 +96,33 @@ pub fn t(key: Key) -> &'static str {
             device_disconnected => "(Lecsatlakoztatva)",
             battery_unavailable => "(Akkumulátor információ nem elérhető)",
             show_notifications => "Értesítések megjelenítése",
-            show_text_icon => "Akkumulátor százalékos megjelenitése iconban",
+            show_text_icon => "Akkumulátor százalékos megjelenítése ikonban",
             notifications_enabled_message => "Értesítések engedélyezve",
             version => "Verzió",
             update_available => "Frissítés elérhető",
+            _ => english(key),
         },
+    }
+}
+
+fn english(key: Key) -> &'static str {
+    use Key::*;
+    match key {
+        no_headset_found => "No headset found",
+        view_logs => "View logs",
+        quit_program => "Close",
+        device_charging => "(Charging)",
+        device_disconnected => "(Disconnected)",
+        battery_unavailable => "(Battery unavailable)",
+        show_notifications => "Show notifications",
+        show_text_icon => "Show battery percentage as number icon",
+        notifications_enabled_message => "Notifications enabled",
+        version => "Version",
+        update_available => "Update available",
+        control_headset => "Control headset",
+        sidetone => "Sidetone",
+        microphone_light => "Microphone LED when muted",
+        inactive_time => "Inactive time",
     }
 }
 
@@ -107,6 +138,7 @@ pub enum Lang {
 }
 
 #[allow(non_camel_case_types)]
+#[derive(Clone, Copy)]
 pub enum Key {
     no_headset_found,
     view_logs,
@@ -119,6 +151,10 @@ pub enum Key {
     notifications_enabled_message,
     version,
     update_available,
+    control_headset,
+    sidetone,
+    microphone_light,
+    inactive_time,
 }
 
 use std::sync::LazyLock;

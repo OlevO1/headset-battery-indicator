@@ -10,7 +10,8 @@ mod version_check;
 use anyhow::Result;
 use lang::Key::*;
 use std::{
-    sync::LazyLock, time::{Duration, Instant}
+    sync::LazyLock,
+    time::{Duration, Instant},
 };
 use windows::{
     Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA},
@@ -63,7 +64,7 @@ impl AppState {
     pub fn init() -> anyhow::Result<Self> {
         #[cfg(not(feature = "portable"))]
         let settings = settings::Settings::load().context("loading config from registry")?;
-        
+
         #[cfg(feature = "portable")]
         let settings = settings::Settings::load().context("loading config from ini")?;
 
@@ -106,6 +107,10 @@ impl AppState {
 
         match result {
             None => {
+                if let Err(e) = self.context_menu.clear_control_menu() {
+                    error!("Failed to clear headset control menu: {e:?}");
+                }
+
                 if let Some(notifier) = &mut self.notifier {
                     notifier.update(0, BatteryStatus::Unavailable, "");
                 }
@@ -120,6 +125,13 @@ impl AppState {
                 Ok(())
             }
             Some(device) => {
+                if let Err(e) = self
+                    .context_menu
+                    .sync_control_menu(device.capabilities, self.settings)
+                {
+                    error!("Failed to update headset control menu: {e:?}");
+                }
+
                 let battery_level = device.battery.level_percent as isize;
                 let battery_status = device.battery.status;
                 let product_name = device.product_name.to_string();
@@ -168,6 +180,64 @@ impl AppState {
                 .context("loading icon from resource")
         }
     }
+
+    fn handle_control_action(&mut self, action: menu::ControlAction) {
+        match action {
+            menu::ControlAction::Sidetone => {
+                let previous = self.settings.sidetone_enabled;
+                let next = !previous;
+
+                match headset_control::set_sidetone_enabled(next) {
+                    Ok(()) => {
+                        self.settings.sidetone_enabled = next;
+                        self.context_menu.set_sidetone_checked(next);
+                        if let Err(e) = self.settings.save() {
+                            error!("Failed to save settings: {e:?}");
+                        }
+                    }
+                    Err(e) => {
+                        self.context_menu.set_sidetone_checked(previous);
+                        error!("Failed to set sidetone: {e:?}");
+                    }
+                }
+            }
+            menu::ControlAction::MicrophoneLight => {
+                let previous = self.settings.microphone_light_enabled;
+                let next = !previous;
+
+                match headset_control::set_microphone_light_enabled(next) {
+                    Ok(()) => {
+                        self.settings.microphone_light_enabled = next;
+                        self.context_menu.set_microphone_light_checked(next);
+                        if let Err(e) = self.settings.save() {
+                            error!("Failed to save settings: {e:?}");
+                        }
+                    }
+                    Err(e) => {
+                        self.context_menu.set_microphone_light_checked(previous);
+                        error!("Failed to set microphone light: {e:?}");
+                    }
+                }
+            }
+            menu::ControlAction::InactiveTime(minutes) => {
+                let previous = self.settings.inactive_time_minutes;
+
+                match headset_control::set_inactive_time_minutes(minutes) {
+                    Ok(()) => {
+                        self.settings.inactive_time_minutes = minutes;
+                        self.context_menu.set_inactive_time_checked(minutes);
+                        if let Err(e) = self.settings.save() {
+                            error!("Failed to save settings: {e:?}");
+                        }
+                    }
+                    Err(e) => {
+                        self.context_menu.set_inactive_time_checked(previous);
+                        error!("Failed to set inactive time: {e:?}");
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl ApplicationHandler<()> for AppState {
@@ -209,6 +279,11 @@ impl ApplicationHandler<()> for AppState {
             self.last_update = Instant::now();
         }
         if let Ok(event) = MenuEvent::receiver().try_recv() {
+            if let Some(action) = self.context_menu.control_action_for_event(&event) {
+                self.handle_control_action(action);
+                return;
+            }
+
             match event.id {
                 id if id == self.context_menu.menu_enable_notifications.id() => {
                     self.settings.notifications_enabled = !self.settings.notifications_enabled;
@@ -242,17 +317,6 @@ impl ApplicationHandler<()> for AppState {
 
                     if let Err(e) = self.settings.save() {
                         error!("Failed to save settings: {e:?}");
-                    }
-                }
-
-                id if id == self.context_menu.menu_trigger_notification.id() => {
-                    #[cfg(debug_assertions)]
-                    {
-                        if let Some(notifier) = &mut self.notifier {
-                            notifier
-                                .show_notification("Test Device", "Battery low (50%)")
-                                .expect("Sending test notification");
-                        }
                     }
                 }
 
